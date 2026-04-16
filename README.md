@@ -37,15 +37,15 @@ Se evalúan distintas configuraciones de:
 ## Despliegue del sistema
 
 ### Levantar Redis (caché)
-docker run -d --name redis_cache -p 6379:6379 redis:7
-Verificar: docker ps
+- docker run -d --name redis_cache -p 6379:6379 redis:7
+- Verificar: docker ps
 
 ---
 
 ## Ejecución del sistema
 
-Entrar a la carpeta `src`:
-cd src
-python main.py
+- Entrar a la carpeta `src`:
+- cd src
+- python main.py
 
 ---
