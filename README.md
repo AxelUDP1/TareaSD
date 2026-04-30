@@ -16,36 +16,35 @@ Se evalúan distintas configuraciones de:
 
 ## Requisitos
 
-- Python 3.10 o superior
 - Docker Desktop
 - Git
 
 ---
 
 ## Instalación
+
 ### 1. Clonar el repositorio
 
-- git clone https://github.com/AxelUDP1/TareaSD.git
-- cd TareaSD    
-
-### 2. Instalar dependencias
-
-- pip install -r requirements.txt
+```bash
+git clone https://github.com/AxelUDP1/TareaSD.git
+cd TareaSD
+```
 
 ---
 
-## Despliegue del sistema
+## Despliegue con Docker Compose (recomendado)
 
-### Levantar Redis (caché)
-- docker run -d --name redis_cache -p 6379:6379 redis:7
-- Verificar: docker ps
+```bash
+docker compose up --build
+```
+
+Los resultados quedan en la carpeta `results/results_summary.csv`.
+
+Para detener:
+
+```bash
+docker compose down
+```
 
 ---
 
-## Ejecución del sistema
-
-- Entrar a la carpeta `src`:
-- cd src
-- python main.py
-
----
