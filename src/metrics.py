@@ -2,6 +2,46 @@ import time
 import math
 
 
+class KafkaMetricsCollector:
+    """
+    Agrega los resultados por escenario Kafka desde los archivos
+    kafka_metrics_<scenario>.json producidos por los consumers.
+    Permite comparar escenarios entre sí y contra el sistema síncrono.
+    """
+
+    def __init__(self, scenario: str, sync_throughput: float = 0):
+        self.scenario = scenario
+        self.sync_throughput = sync_throughput  # throughput base (Tarea 1)
+        self.records: list[dict] = []
+
+    def add_kafka_result(self, result: dict):
+        """Agrega el JSON producido por kafka_consumer al final de un escenario."""
+        self.records.append(result)
+
+    def get_summary(self) -> dict:
+        if not self.records:
+            return {}
+        last = self.records[-1]
+        throughput = last.get("throughput", 0)
+        return {
+            "scenario":       self.scenario,
+            "total_processed": last.get("total_processed", 0),
+            "hit_rate":        last.get("hit_rate", 0),
+            "throughput":      throughput,
+            "latency_p50":     last.get("latency_p50", 0),
+            "latency_p95":     last.get("latency_p95", 0),
+            "retry_rate":      last.get("retry_rate", 0),
+            "recovery_rate":   last.get("recovery_rate", 0),
+            "dlq_rate":        last.get("dlq_rate", 0),
+            "backlog_peak":    max(
+                (s[1] for s in last.get("backlog_snapshots", [])),
+                default=0
+            ),
+            "speedup_vs_sync": round(throughput / self.sync_throughput, 3)
+                               if self.sync_throughput > 0 else None,
+        }
+
+
 class MetricsCollector:
     """
     Recolecta y calcula métricas de rendimiento del sistema de caché.

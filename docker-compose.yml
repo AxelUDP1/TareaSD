@@ -1,10 +1,14 @@
 services:
+
+  # ── Infraestructura compartida ─────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
     restart: unless-stopped
 
+  # ── Tarea 1 – Sistema síncrono base ───────────────────────────────────────
+  # Uso: docker compose --profile tarea1 up --build
   app:
     build: .
     depends_on:
@@ -18,3 +22,130 @@ services:
     volumes:
       - ./results:/app/results
     restart: on-failure
+    profiles:
+      - tarea1
+
+  # ── Tarea 2 – Infraestructura Kafka ───────────────────────────────────────
+  # Modo manual  (producer + consumer independientes):
+  #   docker compose --profile tarea2 up --build
+  #   docker compose --profile tarea2 up --scale consumer=4
+  #
+  # Modo orquestado (corre los 7 escenarios automáticamente):
+  #   docker compose --profile tarea2-full up --build
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+    profiles:
+      - tarea2
+      - tarea2-full
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:29092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+    restart: unless-stopped
+    profiles:
+      - tarea2
+      - tarea2-full
+
+  # Crea los tópicos iniciales (solo para modo manual tarea2)
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - "kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 4 --replication-factor 1 --topic queries && kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 4 --replication-factor 1 --topic queries.retry && kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1 --topic queries.dlq && echo 'Topicos creados: queries, queries.retry, queries.dlq'"
+    restart: "no"
+    profiles:
+      - tarea2
+
+  # Genera tráfico y publica consultas en Kafka
+  producer:
+    build: .
+    command: python -u kafka_producer.py
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - N_REQUESTS=500
+      - ZIPF_S=2.0
+      - DATA_PATH=../data/buildings.csv
+      - DISTRIBUTION=zipf          # zipf | uniform
+      - REQUESTS_PER_SECOND=50     # tasa de publicación (0 = sin límite)
+    volumes:
+      - ./results:/app/results
+    restart: "no"
+    profiles:
+      - tarea2
+
+  # Consume consultas, verifica caché, ejecuta queries, maneja reintentos/DLQ
+  consumer:
+    build: .
+    command: python -u kafka_consumer.py
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATA_PATH=../data/buildings.csv
+      - CONSUMER_GROUP=query-processors
+      - MAX_RETRIES=3               # intentos antes de enviar a DLQ
+      - FAILURE_RATE=0.0            # 0.0–1.0: probabilidad de fallo artificial
+      - FAILURE_DURATION=0          # segundos que dura la falla (0 = permanente hasta reinicio)
+    volumes:
+      - ./results:/app/results
+    restart: unless-stopped
+    profiles:
+      - tarea2
+
+  # Orquestador: corre los 7 escenarios en secuencia y genera gráficos
+  # Uso: docker compose --profile tarea2-full up --build
+  orchestrator:
+    build: .
+    command: python -u main_kafka.py
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATA_PATH=../data/buildings.csv
+      - N_REQUESTS=500
+      - ZIPF_S=2.0
+    volumes:
+      - ./results:/app/results
+    restart: "no"
+    profiles:
+      - tarea2-full
