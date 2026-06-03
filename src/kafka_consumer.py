@@ -43,7 +43,8 @@ _metrics = {
     "dlq_count":       0,
     "latencies":       [],
     "backlog_snapshots": [],
-    "recovery_time":   None,   # segundos entre fin de falla y backlog=0
+    "recovery_time":   None,   # segundos entre fin de ventana de falla y backlog=0
+    "drain_time":      None,   # segundos desde pico de backlog hasta backlog=0
     "start_time":      time.time(),
 }
 _metrics_lock = threading.Lock()
@@ -51,6 +52,10 @@ _shutdown = threading.Event()
 
 # Timestamp en que terminó la ventana de falla (usado para recovery_time)
 _recovery_measuring: float = 0.0
+
+# Para medir el tiempo de drenado del backlog desde su pico hasta cero
+_peak_backlog: int = 0
+_drain_start_time: float = 0.0
 
 
 # ── Conexión a Kafka ───────────────────────────────────────────────────────────
@@ -162,7 +167,8 @@ def _flush_metrics():
             "latency_p50":     round(_percentile(lats, 50), 6),
             "latency_p95":     round(_percentile(lats, 95), 6),
             "recovery_time":   _metrics["recovery_time"],
-            "backlog_snapshots": _metrics["backlog_snapshots"][-10:],
+            "drain_time":      _metrics["drain_time"],
+            "backlog_snapshots": _metrics["backlog_snapshots"],
         }
 
     path = os.path.join(RESULTS_DIR, f"kafka_metrics_{SCENARIO}.json")
@@ -172,8 +178,8 @@ def _flush_metrics():
 
 
 def _metrics_thread(consumer: KafkaConsumer):
-    """Hilo que flushea métricas, registra backlog y mide recovery_time."""
-    global _recovery_measuring
+    """Hilo que flushea métricas, registra backlog y mide recovery_time y drain_time."""
+    global _recovery_measuring, _peak_backlog, _drain_start_time
     while not _shutdown.wait(timeout=METRICS_INTERVAL):
         now = time.time()
         bl = _get_backlog(consumer, TOPIC_MAIN) + _get_backlog(consumer, TOPIC_RETRY)
@@ -190,6 +196,20 @@ def _metrics_thread(consumer: KafkaConsumer):
                         _metrics["recovery_time"] = rt
                         print(f"[Consumer] Recovery time: {rt}s")
                 _recovery_measuring = -1.0  # marcar como ya medido
+
+        # Drain time: desde el pico del backlog hasta backlog=0 (útil en escenario spike)
+        if bl > _peak_backlog:
+            _peak_backlog = bl
+        elif _peak_backlog > 5 and bl < _peak_backlog and _drain_start_time == 0.0:
+            _drain_start_time = now
+            print(f"[Consumer] Backlog en descenso desde pico={_peak_backlog}, midiendo drain_time...")
+        if _drain_start_time > 0.0 and bl == 0:
+            with _metrics_lock:
+                if _metrics["drain_time"] is None:
+                    dt = round(now - _drain_start_time, 2)
+                    _metrics["drain_time"] = dt
+                    print(f"[Consumer] Drain time: {dt}s")
+            _drain_start_time = -1.0  # marcar como ya medido
 
         with _metrics_lock:
             _metrics["backlog_snapshots"].append((round(now, 2), bl))
@@ -316,6 +336,7 @@ def main():
             f"hits={snap['cache_hits']} misses={snap['cache_misses']} "
             f"retried={snap['retried']} recovered={snap['recovered']} "
             f"dlq={snap['dlq_count']} throughput={snap['throughput']} req/s"
+            + (f" drain_time={snap['drain_time']}s" if snap['drain_time'] else "")
         )
 
 

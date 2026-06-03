@@ -46,10 +46,13 @@ def _load_consumers_comparison() -> pd.DataFrame:
         if os.path.exists(path):
             with open(path) as f:
                 d = json.load(f)
-            rows.append({"consumers": n,
+            snaps = d.get("backlog_snapshots", [])
+            peak_backlog = max((s[1] for s in snaps), default=0)
+            rows.append({"consumers":    n,
                          "throughput":   d.get("throughput", 0),
                          "latency_p50":  d.get("latency_p50", 0),
-                         "latency_p95":  d.get("latency_p95", 0)})
+                         "latency_p95":  d.get("latency_p95", 0),
+                         "peak_backlog": peak_backlog})
     return pd.DataFrame(rows)
 
 
@@ -126,7 +129,7 @@ def plot_retry_rates(df: pd.DataFrame):
 def plot_consumers_scaling(cdf: pd.DataFrame):
     if cdf.empty:
         return
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
 
     axes[0].plot(cdf["consumers"], cdf["throughput"], "o-", color="#4C72B0", linewidth=2)
     axes[0].set_title("Throughput vs Nº de consumers")
@@ -145,6 +148,14 @@ def plot_consumers_scaling(cdf: pd.DataFrame):
     axes[1].set_xticks(cdf["consumers"])
     axes[1].legend()
     axes[1].grid(alpha=0.3)
+
+    bars = axes[2].bar(cdf["consumers"].astype(str) + "c",
+                       cdf["peak_backlog"], color="#55A868")
+    axes[2].bar_label(bars, fmt="%d", padding=3, fontsize=9)
+    axes[2].set_title("Backlog máximo vs Nº de consumers")
+    axes[2].set_xlabel("Consumers")
+    axes[2].set_ylabel("Mensajes pendientes (pico)")
+    axes[2].grid(axis="y", alpha=0.3)
 
     fig.suptitle("Escenario 3: Escalamiento horizontal Kafka")
     _save(fig, "kafka_escalamiento_consumers.png")
@@ -193,6 +204,56 @@ def plot_loss_comparison(df: pd.DataFrame):
     _save(fig, "kafka_perdida_consultas.png")
 
 
+# ── Gráfico 7: Recovery time y drain time por escenario ──────────────────────
+def plot_recovery_times(df: pd.DataFrame):
+    """Visualiza recovery_time (Esc. 4) y drain_time (Esc. 4–7)."""
+    fault_scenarios = ["4_falla", "5_reintentos", "6_spike", "7_recuperacion"]
+    fdf = df[df["scenario"].isin(fault_scenarios)].copy()
+    if fdf.empty:
+        return
+
+    # Cargar drain_time desde los JSON individuales (no está en el CSV consolidado)
+    drain_times = {}
+    for sc in fault_scenarios:
+        path = os.path.join(RESULTS_DIR, f"kafka_metrics_{sc}.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                d = json.load(f)
+            drain_times[sc] = d.get("drain_time")
+
+    fdf["drain_time"] = fdf["scenario"].map(drain_times)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    x = range(len(fdf))
+    w = 0.35
+
+    recovery_vals = [v if v is not None else 0 for v in fdf["recovery_time"]]
+    drain_vals    = [v if v is not None else 0 for v in fdf["drain_time"]]
+
+    bars_r = ax.bar([i - w/2 for i in x], recovery_vals,
+                    width=w, label="Recovery time (s)", color="#4C72B0")
+    bars_d = ax.bar([i + w/2 for i in x], drain_vals,
+                    width=w, label="Drain time (s)", color="#55A868")
+
+    for bar, orig in zip(bars_r, fdf["recovery_time"]):
+        label = f"{orig:.1f}s" if orig else "N/A"
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
+                label, ha="center", va="bottom", fontsize=8)
+    for bar, orig in zip(bars_d, fdf["drain_time"]):
+        label = f"{orig:.1f}s" if orig else "N/A"
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
+                label, ha="center", va="bottom", fontsize=8)
+
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(fdf["label"])
+    ax.set_title("Tiempo de recuperación y drenado de colas (s)")
+    ax.set_ylabel("Segundos")
+    ax.set_xlabel("Escenario")
+    ax.legend()
+    ax.grid(axis="y", alpha=0.3)
+    _save(fig, "kafka_recovery_drain_time.png")
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     df = _load_csv()
@@ -207,6 +268,7 @@ def main():
     plot_consumers_scaling(cdf)
     plot_backlog(["4_falla", "5_reintentos", "6_spike", "7_recuperacion"])
     plot_loss_comparison(df)
+    plot_recovery_times(df)
 
     print("[plot] Gráficos Kafka generados en results/")
 

@@ -11,7 +11,7 @@ Sistema de evaluación de caché Redis sobre datos geoespaciales de edificacione
 
 ## Requisitos
 
-- Docker Desktop
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (debe estar corriendo antes de ejecutar cualquier comando)
 - Git
 
 ---
@@ -29,35 +29,25 @@ cd TareaSD
 
 ### Tarea 1 – Sistema síncrono base
 
-Corre 60 combinaciones de configuración (2 distribuciones × 2 políticas × 5 tamaños × 3 TTLs):
+Corre 60 combinaciones de configuración (2 distribuciones × 2 políticas × 5 tamaños × 3 TTLs). Puede tardar varios minutos.
 
 ```bash
 docker compose --profile tarea1 up --build
 ```
 
-Resultados en `results/results_summary.csv` y 9 gráficos PNG.
+Los resultados se generan automáticamente en la carpeta `results/`: el archivo `results_summary.csv` y 9 gráficos PNG.
 
 ---
 
 ### Tarea 2 – Sistema con Kafka
 
-#### Modo orquestado (recomendado) — corre los 7 escenarios automáticamente
+Corre los 7 escenarios automáticamente en secuencia:
 
 ```bash
 docker compose --profile tarea2-full up --build
 ```
 
-Resultados en `results/kafka_results_summary.csv` y 6 gráficos PNG.
-
-#### Modo manual — producer y consumer independientes
-
-```bash
-# Levantar infraestructura + 1 consumer
-docker compose --profile tarea2 up --build
-
-# Escalar a N consumers (en otra terminal)
-docker compose --profile tarea2 up --scale consumer=4
-```
+Los resultados se generan en `results/`: el archivo `kafka_results_summary.csv` y 6 gráficos PNG.
 
 ---
 

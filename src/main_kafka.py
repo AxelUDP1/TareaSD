@@ -141,7 +141,8 @@ def escenario_1_base() -> dict:
         "hit_rate":       round(result["hit_rate"], 4),
         "retry_rate":     0, "recovery_rate": 0,
         "dlq_rate":       0, "backlog_peak":  0,
-        "recovery_time":  None, "total_processed": result["total_requests"],
+        "recovery_time":  None, "drain_time": None,
+        "total_processed": result["total_requests"],
     }
 
 
@@ -248,7 +249,7 @@ def escenario_6_spike() -> dict:
     time.sleep(DRAIN_WAIT + 20)
     _stop_consumers(consumers)
     m = _load_metrics(scenario)
-    print(f"  backlog_peak={m.get('backlog_snapshots', [['?','?']])[-1]}")
+    print(f"  backlog_peak={_backlog_peak(m)}")
     return m
 
 
@@ -277,7 +278,7 @@ FIELDNAMES = [
     "scenario", "total_processed", "throughput",
     "latency_p50", "latency_p95", "hit_rate",
     "retry_rate", "recovery_rate", "dlq_rate",
-    "backlog_peak", "recovery_time",
+    "backlog_peak", "recovery_time", "drain_time",
 ]
 
 
@@ -302,6 +303,7 @@ def _save_summary(results: list):
             "dlq_rate":       m.get("dlq_rate", 0),
             "backlog_peak":   _backlog_peak(m),
             "recovery_time":  m.get("recovery_time"),
+            "drain_time":     m.get("drain_time"),
         })
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
