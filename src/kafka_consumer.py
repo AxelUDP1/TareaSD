@@ -24,7 +24,7 @@ CACHE_SIZE_MB     = int(os.getenv("CACHE_SIZE_MB", 50))
 CACHE_POLICY      = os.getenv("CACHE_POLICY", "allkeys-lru")
 CACHE_TTL         = int(os.getenv("CACHE_TTL", 60))
 METRICS_INTERVAL  = int(os.getenv("METRICS_INTERVAL", 30))  # segundos entre flushes
-RESULTS_DIR       = os.getenv("RESULTS_DIR", "../results")
+RESULTS_DIR       = os.getenv("RESULTS_DIR", "../results/kafka")
 SCENARIO          = os.getenv("SCENARIO", "kafka")           # etiqueta para el archivo de salida
 
 TOPIC_MAIN  = "queries"
@@ -172,8 +172,10 @@ def _flush_metrics():
         }
 
     path = os.path.join(RESULTS_DIR, f"kafka_metrics_{SCENARIO}.json")
-    with open(path, "w") as f:
+    tmp = path + f".{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
         json.dump(snapshot, f, indent=2)
+    os.replace(tmp, path)  # atomic on Linux — prevents partial-write corruption from concurrent consumers
     return snapshot
 
 

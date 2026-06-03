@@ -9,6 +9,5 @@ data/buildings_large.csv
 .DS_Store
 
 # Resultados generados
-results/*.csv
-results/*.png
-results/*.json
+results/cache/
+results/kafka/

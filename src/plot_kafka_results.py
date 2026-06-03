@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "results")
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "results", "kafka")
 OUT_DIR     = RESULTS_DIR
 
 SCENARIO_LABELS = {

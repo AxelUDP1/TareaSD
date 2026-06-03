@@ -5,7 +5,8 @@ import os
 
 matplotlib.use("Agg")
 
-OUTPUT_DIR = "../results"
+OUTPUT_DIR = "../results/cache"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 df = pd.read_csv(f"{OUTPUT_DIR}/results_summary.csv")
 
 df["policy"] = df["policy"].str.replace("allkeys-", "", regex=False)

@@ -132,15 +132,15 @@ def main():
 
 def save_results(results):
     """Guarda todos los resultados en CSV para análisis posterior."""
-    os.makedirs("../results", exist_ok=True)
+    os.makedirs("../results/cache", exist_ok=True)
     keys = results[0].keys()
 
-    with open("../results/results_summary.csv", "w", newline="") as f:
+    with open("../results/cache/results_summary.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=keys)
         writer.writeheader()
         writer.writerows(results)
 
-    print("\nResultados guardados en results/results_summary.csv")
+    print("\nResultados guardados en results/cache/results_summary.csv")
 
 
 if __name__ == "__main__":

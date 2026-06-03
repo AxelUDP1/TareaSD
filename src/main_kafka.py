@@ -21,7 +21,7 @@ from data_loader import load_data
 from main import run_experiment
 
 # ── Parámetros globales ────────────────────────────────────────────────────────
-RESULTS_DIR       = os.path.join(os.path.dirname(__file__), "..", "results")
+RESULTS_DIR       = os.path.join(os.path.dirname(__file__), "..", "results", "kafka")
 N_REQUESTS        = int(os.getenv("N_REQUESTS", 500))
 ZIPF_S            = float(os.getenv("ZIPF_S", 2.0))
 DATA_PATH         = os.getenv("DATA_PATH", "../data/buildings.csv")
