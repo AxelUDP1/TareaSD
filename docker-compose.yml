@@ -25,12 +25,12 @@ services:
     profiles:
       - tarea1
 
-  # ── Tarea 2 – Infraestructura Kafka ───────────────────────────────────────
+  # ── Tarea 2 – Infraestructura Kafka
   # Modo manual  (producer + consumer independientes):
   #   docker compose --profile tarea2 up --build
   #   docker compose --profile tarea2 up --scale consumer=4
   #
-  # Modo automatico (corre los 7 escenarios automáticamente):
+  # Modo automatico (corre los 7 escenarios automáticamente)
   #   docker compose --profile tarea2-full up --build
 
   zookeeper:
