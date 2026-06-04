@@ -204,52 +204,53 @@ def plot_loss_comparison(df: pd.DataFrame):
     _save(fig, "kafka_perdida_consultas.png")
 
 
-# ── Gráfico 7: Recovery time y drain time por escenario ──────────────────────
-def plot_recovery_times(df: pd.DataFrame):
-    """Visualiza recovery_time (Esc. 4) y drain_time (Esc. 4–7)."""
+# ── Gráfico 7: Destino de mensajes (procesados / reintentados / DLQ) ─────────
+def plot_message_fate(df: pd.DataFrame):
+    """Stacked bar: mensajes procesados exitosamente, reintentados y enviados a DLQ."""
     fault_scenarios = ["4_falla", "5_reintentos", "6_spike", "7_recuperacion"]
     fdf = df[df["scenario"].isin(fault_scenarios)].copy()
     if fdf.empty:
         return
 
-    # Cargar drain_time desde los JSON individuales (no está en el CSV consolidado)
-    drain_times = {}
-    for sc in fault_scenarios:
+    processed_vals, retried_vals, dlq_vals, labels = [], [], [], []
+    for _, row in fdf.iterrows():
+        sc = row["scenario"]
         path = os.path.join(RESULTS_DIR, f"kafka_metrics_{sc}.json")
         if os.path.exists(path):
             with open(path) as f:
                 d = json.load(f)
-            drain_times[sc] = d.get("drain_time")
+            total   = d.get("total_processed", 0)
+            retried = d.get("retried", 0)
+            dlq     = d.get("dlq_count", 0)
+        else:
+            total, retried, dlq = int(row["total_processed"]), 0, 0
+        processed_vals.append(total)
+        retried_vals.append(retried)
+        dlq_vals.append(dlq)
+        labels.append(row["label"])
 
-    fdf["drain_time"] = fdf["scenario"].map(drain_times)
+    fig, ax = plt.subplots(figsize=(9, 5))
+    x = range(len(labels))
+    w = 0.55
 
-    fig, ax = plt.subplots(figsize=(10, 5))
-    x = range(len(fdf))
-    w = 0.35
+    b1 = ax.bar(x, processed_vals, width=w, label="Procesados con éxito", color="#55A868")
+    b2 = ax.bar(x, retried_vals, width=w, bottom=processed_vals,
+                label="Reintentos acumulados", color="#DD8452")
+    bottom2 = [p + r for p, r in zip(processed_vals, retried_vals)]
+    b3 = ax.bar(x, dlq_vals, width=w, bottom=bottom2,
+                label="DLQ (pérdida permanente)", color="#C44E52")
 
-    recovery_vals = [v if v is not None else 0 for v in fdf["recovery_time"]]
-    drain_vals    = [v if v is not None else 0 for v in fdf["drain_time"]]
-
-    bars_r = ax.bar([i - w/2 for i in x], recovery_vals,
-                    width=w, label="Recovery time (s)", color="#4C72B0")
-    bars_d = ax.bar([i + w/2 for i in x], drain_vals,
-                    width=w, label="Drain time (s)", color="#55A868")
-
-    for bar, orig in zip(bars_r, fdf["recovery_time"]):
-        label = f"{orig:.1f}s" if orig else "N/A"
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
-                label, ha="center", va="bottom", fontsize=8)
-    for bar, orig in zip(bars_d, fdf["drain_time"]):
-        label = f"{orig:.1f}s" if orig else "N/A"
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
-                label, ha="center", va="bottom", fontsize=8)
+    ax.bar_label(b1, labels=[str(v) for v in processed_vals],
+                 label_type="center", fontsize=8, color="white", fontweight="bold")
+    ax.bar_label(b3, labels=[str(v) if v > 0 else "" for v in dlq_vals],
+                 padding=3, fontsize=8)
 
     ax.set_xticks(list(x))
-    ax.set_xticklabels(fdf["label"])
-    ax.set_title("Tiempo de recuperación y drenado de colas (s)")
-    ax.set_ylabel("Segundos")
+    ax.set_xticklabels(labels)
+    ax.set_title("Destino de mensajes en escenarios con fallos")
+    ax.set_ylabel("Número de mensajes")
     ax.set_xlabel("Escenario")
-    ax.legend()
+    ax.legend(loc="upper right")
     ax.grid(axis="y", alpha=0.3)
     _save(fig, "kafka_recovery_drain_time.png")
 
@@ -268,7 +269,7 @@ def main():
     plot_consumers_scaling(cdf)
     plot_backlog(["4_falla", "5_reintentos", "6_spike", "7_recuperacion"])
     plot_loss_comparison(df)
-    plot_recovery_times(df)
+    plot_message_fate(df)
 
     print("[plot] Gráficos Kafka generados en results/")
 

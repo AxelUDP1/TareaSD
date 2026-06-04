@@ -30,7 +30,7 @@ services:
   #   docker compose --profile tarea2 up --build
   #   docker compose --profile tarea2 up --scale consumer=4
   #
-  # Modo orquestado (corre los 7 escenarios automáticamente):
+  # Modo automatico (corre los 7 escenarios automáticamente):
   #   docker compose --profile tarea2-full up --build
 
   zookeeper:

@@ -202,7 +202,7 @@ def _metrics_thread(consumer: KafkaConsumer):
         # Drain time: desde el pico del backlog hasta backlog=0 (útil en escenario spike)
         if bl > _peak_backlog:
             _peak_backlog = bl
-        elif _peak_backlog > 5 and bl < _peak_backlog and _drain_start_time == 0.0:
+        elif _peak_backlog > 0 and bl < _peak_backlog and _drain_start_time == 0.0:
             _drain_start_time = now
             print(f"[Consumer] Backlog en descenso desde pico={_peak_backlog}, midiendo drain_time...")
         if _drain_start_time > 0.0 and bl == 0:

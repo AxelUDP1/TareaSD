@@ -254,22 +254,23 @@ def escenario_6_spike() -> dict:
 
 
 def escenario_7_recuperacion() -> dict:
-    """40% de fallo + MAX_RETRIES=3. Cuantifica pérdida vs recuperación."""
+    """80% de fallo durante 20s + MAX_RETRIES=3. Mide recovery_time y pérdida vs recuperación."""
     print("\n=== Escenario 7: Recuperación ante Fallos ===")
     _reset_topics()
     scenario = "7_recuperacion"
     consumers = _start_consumers(2, {
-        "SCENARIO": scenario, "FAILURE_RATE": "0.4",
-        "MAX_RETRIES": "3", "N_REQUESTS": str(N_REQUESTS),
-        "METRICS_INTERVAL": "15",
+        "SCENARIO": scenario, "FAILURE_RATE": "0.8",
+        "FAILURE_DURATION": "20", "MAX_RETRIES": "3", "N_REQUESTS": str(N_REQUESTS),
+        "METRICS_INTERVAL": "10",
     })
     time.sleep(3)
     _run_producer({"N_REQUESTS": str(N_REQUESTS), "DISTRIBUTION": "zipf",
-                   "REQUESTS_PER_SECOND": "0"})
-    time.sleep(DRAIN_WAIT + 30)
+                   "REQUESTS_PER_SECOND": "30"})
+    time.sleep(DRAIN_WAIT + 40)   # extra: falla 20s + recovery window
     _stop_consumers(consumers)
     m = _load_metrics(scenario)
-    print(f"  recovered={m.get('recovered', 0)}  dlq={m.get('dlq_count', 0)}")
+    print(f"  recovered={m.get('recovered', 0)}  dlq={m.get('dlq_count', 0)}"
+          f"  recovery_time={m.get('recovery_time')}s")
     return m
 
 
